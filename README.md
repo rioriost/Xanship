@@ -14,6 +14,20 @@ It is intentionally phased rather than live migration:
 6. Stop the Docker Desktop containers.
 7. Start equivalent containers with Apple Container.
 
+## Migration overview
+
+<table>
+  <tr>
+    <td align="center"><strong>On Docker Desktop</strong></td>
+    <td align="center" rowspan="2"><h1>→</h1></td>
+    <td align="center"><strong>On Apple Container</strong></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="images/on_docker.png" alt="Containers running on Docker Desktop" width="360"></td>
+    <td align="center"><img src="images/on_ac.png" alt="Containers migrated to Apple Container" width="360"></td>
+  </tr>
+</table>
+
 ## Install
 
 Install the latest release from GitHub Releases:
