@@ -14,6 +14,20 @@ English documentation is available in [README.md](README.md).
 6. Docker Desktop 側のコンテナを停止する。
 7. Apple Container 側で同等のコンテナを起動する。
 
+## 移行イメージ
+
+<table>
+  <tr>
+    <td align="center"><strong>Docker Desktop 上</strong></td>
+    <td align="center" rowspan="2"><h1>→</h1></td>
+    <td align="center"><strong>Apple Container 上</strong></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="images/on_docker.png" alt="Docker Desktop 上で稼働するコンテナ" width="360"></td>
+    <td align="center"><img src="images/on_ac.png" alt="Apple Container に移行されたコンテナ" width="360"></td>
+  </tr>
+</table>
+
 ## インストール
 
 GitHub Releases から最新版をインストールできます。
