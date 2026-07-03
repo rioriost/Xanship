@@ -2,8 +2,18 @@
 set -eu
 
 repo="rioriost/Xanship"
-install_dir="${INSTALL_DIR:-/usr/local/bin}"
 version="${XANSHIP_VERSION:-${1:-latest}}"
+
+if [ "${INSTALL_DIR:-}" ]; then
+  install_dir="$INSTALL_DIR"
+elif [ -d /usr/local/bin ] && [ -w /usr/local/bin ]; then
+  install_dir="/usr/local/bin"
+elif [ "${HOME:-}" ]; then
+  install_dir="$HOME/.local/bin"
+else
+  echo "INSTALL_DIR is not set and HOME is unavailable" >&2
+  exit 1
+fi
 
 os="$(uname -s | tr '[:upper:]' '[:lower:]')"
 arch="$(uname -m)"
@@ -49,3 +59,8 @@ mkdir -p "$install_dir"
 install "$tmpdir/xanship" "$install_dir/xanship"
 
 echo "installed xanship $tag to $install_dir/xanship"
+
+case ":${PATH:-}:" in
+  *":$install_dir:"*) ;;
+  *) echo "note: add $install_dir to PATH to run xanship without a full path" ;;
+esac

@@ -28,6 +28,12 @@ Install a specific version:
 curl -fsSL https://raw.githubusercontent.com/rioriost/Xanship/main/scripts/install.sh | sh -s -- 0.1.0
 ```
 
+The installer uses `/usr/local/bin` when it is writable. Otherwise, it installs to `$HOME/.local/bin`. Set `INSTALL_DIR` to choose a different destination:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/rioriost/Xanship/main/scripts/install.sh | INSTALL_DIR="$HOME/bin" sh -s -- 0.1.0
+```
+
 Release archives and checksums are published at <https://github.com/rioriost/Xanship/releases>.
 
 ## Build
