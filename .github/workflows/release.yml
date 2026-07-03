@@ -57,7 +57,7 @@ jobs:
           Install:
 
           \`\`\`sh
-          curl -fsSL https://raw.githubusercontent.com/rioriost/Xanship/main/scripts/install.sh | sh -s -- ${version}
+          curl -fsSL https://raw.githubusercontent.com/rioriost/xanship/main/scripts/install.sh | sh -s -- ${version}
           \`\`\`
 
           See README.md and docs/tested.md for usage and tested migration coverage.

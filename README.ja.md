@@ -19,19 +19,19 @@ English documentation is available in [README.md](README.md).
 GitHub Releases から最新版をインストールできます。
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/rioriost/Xanship/main/scripts/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/rioriost/xanship/main/scripts/install.sh | sh
 ```
 
 バージョンを指定してインストールする場合:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/rioriost/Xanship/main/scripts/install.sh | sh -s -- 0.1.0
+curl -fsSL https://raw.githubusercontent.com/rioriost/xanship/main/scripts/install.sh | sh -s -- 0.1.0
 ```
 
 インストーラは `/usr/local/bin` に書き込める場合はそこへインストールします。書き込めない場合は `$HOME/.local/bin` にインストールします。別の場所に入れる場合は `INSTALL_DIR` を指定してください。
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/rioriost/Xanship/main/scripts/install.sh | INSTALL_DIR="$HOME/bin" sh -s -- 0.1.0
+curl -fsSL https://raw.githubusercontent.com/rioriost/xanship/main/scripts/install.sh | INSTALL_DIR="$HOME/bin" sh -s -- 0.1.0
 ```
 
 リリースアーカイブとチェックサムは <https://github.com/rioriost/Xanship/releases> で公開します。
