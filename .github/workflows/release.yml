@@ -1,0 +1,74 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Test
+        run: go test ./...
+
+      - name: Build release assets
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          version="${TAG#v}"
+          mkdir -p dist
+          for os in darwin linux; do
+            for arch in amd64 arm64; do
+              out="xanship_${version}_${os}_${arch}"
+              mkdir -p "dist/$out"
+              GOOS="$os" GOARCH="$arch" CGO_ENABLED=0 go build \
+                -trimpath \
+                -ldflags="-s -w -X github.com/rioriost/Xanship/internal/xanship.version=$version" \
+                -o "dist/$out/xanship" \
+                ./cmd/xanship
+              cp README.md README.ja.md LICENSE "dist/$out/"
+              mkdir -p "dist/$out/docs"
+              cp docs/tested.md "dist/$out/docs/tested.md"
+              tar -C "dist/$out" -czf "dist/${out}.tar.gz" .
+            done
+          done
+          cd dist
+          sha256sum *.tar.gz > checksums.txt
+
+      - name: Write release notes
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          version="${TAG#v}"
+          cat > release-notes.md <<EOF
+          Xanship ${version}
+
+          Install:
+
+          \`\`\`sh
+          curl -fsSL https://raw.githubusercontent.com/rioriost/Xanship/main/scripts/install.sh | sh -s -- ${version}
+          \`\`\`
+
+          See README.md and docs/tested.md for usage and tested migration coverage.
+          EOF
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "$TAG" dist/*.tar.gz dist/checksums.txt \
+            --title "Xanship ${TAG#v}" \
+            --notes-file release-notes.md \
+            --verify-tag
