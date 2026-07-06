@@ -24,6 +24,7 @@ type PlanOptions struct {
 type SourceSummary struct {
 	Selection          string   `json:"selection"`
 	DockerContext      string   `json:"docker_context,omitempty"`
+	DockerHost         string   `json:"docker_host,omitempty"`
 	DockerVolumeCount  int      `json:"docker_volume_count"`
 	DockerNetworkCount int      `json:"docker_network_count"`
 	ContainerRefs      []string `json:"container_refs"`

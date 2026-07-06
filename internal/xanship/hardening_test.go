@@ -162,6 +162,17 @@ func TestNormalizePolicies(t *testing.T) {
 	}
 }
 
+func TestCommandRunnerPrependsDockerArgs(t *testing.T) {
+	runner := commandRunner{dockerArgs: []string{"--host", "ssh://ubuntu@example"}}
+	args := runner.commandArgs("docker", "ps")
+	if strings.Join(args, " ") != "--host ssh://ubuntu@example ps" {
+		t.Fatalf("docker args = %#v", args)
+	}
+	if got := dockerHostFromArgs(args); got != "ssh://ubuntu@example" {
+		t.Fatalf("dockerHostFromArgs = %q", got)
+	}
+}
+
 func hasIssue(report CompatibilityReport, code string) bool {
 	for _, issue := range report.Issues {
 		if issue.Code == code {

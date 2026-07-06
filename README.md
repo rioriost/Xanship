@@ -97,6 +97,18 @@ Run all phases in sequence:
 xanship migrate --compose-project myproject
 ```
 
+Migrate from Docker running on a Linux host over SSH to local Apple Container:
+
+```sh
+xanship assess --docker-host ssh://ubuntu@linux-host --container web
+xanship load-images --docker-host ssh://ubuntu@linux-host
+xanship copy-volumes --docker-host ssh://ubuntu@linux-host --verify
+xanship stop-docker --docker-host ssh://ubuntu@linux-host
+xanship start-apple
+```
+
+`--docker-context CONTEXT` is also supported when the Docker CLI context already points at the Linux source.
+
 The migration plan is written to `xanship-plan.json` with mode `0600` because Docker inspect output commonly contains environment variables and labels that may include secrets.
 
 ## Tested migrations

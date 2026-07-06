@@ -165,6 +165,7 @@ func BuildPlan(ctx context.Context, runner commandRunner, opts AssessOptions) (*
 		Source: SourceSummary{
 			Selection:          selection,
 			DockerContext:      dockerContext(ctx, runner),
+			DockerHost:         dockerHostFromArgs(runner.dockerArgs),
 			DockerVolumeCount:  len(volumeNames),
 			DockerNetworkCount: len(networkNames),
 			ContainerRefs:      refs,
@@ -258,6 +259,18 @@ func dockerContext(ctx context.Context, runner commandRunner) string {
 		return ""
 	}
 	return strings.TrimSpace(string(out))
+}
+
+func dockerHostFromArgs(args []string) string {
+	for i, arg := range args {
+		if (arg == "--host" || arg == "-H") && i+1 < len(args) {
+			return args[i+1]
+		}
+		if strings.HasPrefix(arg, "--host=") {
+			return strings.TrimPrefix(arg, "--host=")
+		}
+	}
+	return ""
 }
 
 func convertContainer(dc dockerContainer, prefix, bindPolicy string, allocator *nameAllocator, volumeTargets, networkTargets map[string]string) (ContainerPlan, error) {

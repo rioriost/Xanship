@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 )
@@ -211,8 +210,8 @@ func copyOneVolume(ctx context.Context, runner commandRunner, volume VolumePlan,
 		"--entrypoint", "tar",
 		image, "-C", "/to", "-xpf", "-",
 	}
-	dockerCmd := exec.CommandContext(ctx, "docker", dockerArgs...)
-	appleCmd := exec.CommandContext(ctx, "container", appleArgs...)
+	dockerCmd := runner.command(ctx, "docker", dockerArgs...)
+	appleCmd := runner.command(ctx, "container", appleArgs...)
 	pipe, err := dockerCmd.StdoutPipe()
 	if err != nil {
 		return err

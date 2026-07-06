@@ -11,12 +11,29 @@ import (
 )
 
 type commandRunner struct {
-	stdout io.Writer
-	stderr io.Writer
+	stdout        io.Writer
+	stderr        io.Writer
+	dockerArgs    []string
+	containerArgs []string
+}
+
+func (r commandRunner) command(ctx context.Context, name string, args ...string) *exec.Cmd {
+	return exec.CommandContext(ctx, name, r.commandArgs(name, args...)...)
+}
+
+func (r commandRunner) commandArgs(name string, args ...string) []string {
+	switch name {
+	case "docker":
+		return append(append([]string(nil), r.dockerArgs...), args...)
+	case "container":
+		return append(append([]string(nil), r.containerArgs...), args...)
+	default:
+		return args
+	}
 }
 
 func (r commandRunner) output(ctx context.Context, name string, args ...string) ([]byte, error) {
-	cmd := exec.CommandContext(ctx, name, args...)
+	cmd := r.command(ctx, name, args...)
 	var out, errb bytes.Buffer
 	cmd.Stdout = &out
 	cmd.Stderr = &errb
@@ -27,7 +44,7 @@ func (r commandRunner) output(ctx context.Context, name string, args ...string) 
 }
 
 func (r commandRunner) run(ctx context.Context, name string, args ...string) error {
-	cmd := exec.CommandContext(ctx, name, args...)
+	cmd := r.command(ctx, name, args...)
 	cmd.Stdout = r.stdout
 	cmd.Stderr = r.stderr
 	if err := cmd.Run(); err != nil {

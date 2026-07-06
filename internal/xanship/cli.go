@@ -19,6 +19,29 @@ func (s *stringList) Set(v string) error {
 	return nil
 }
 
+type sourceFlags struct {
+	dockerHost    *string
+	dockerContext *string
+}
+
+func addSourceFlags(fs *flag.FlagSet) sourceFlags {
+	return sourceFlags{
+		dockerHost:    fs.String("docker-host", "", "Docker source host, e.g. ssh://user@linux-host"),
+		dockerContext: fs.String("docker-context", "", "Docker source context name"),
+	}
+}
+
+func (s sourceFlags) dockerArgs() []string {
+	var args []string
+	if s.dockerContext != nil && *s.dockerContext != "" {
+		args = append(args, "--context", *s.dockerContext)
+	}
+	if s.dockerHost != nil && *s.dockerHost != "" {
+		args = append(args, "--host", *s.dockerHost)
+	}
+	return args
+}
+
 func Run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	if len(args) == 0 || args[0] == "-h" || args[0] == "--help" {
 		printUsage(stdout)
@@ -63,6 +86,7 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 func runAssess(ctx context.Context, runner commandRunner, args []string, stdout io.Writer) error {
 	fs := flag.NewFlagSet("assess", flag.ContinueOnError)
 	fs.SetOutput(stdout)
+	source := addSourceFlags(fs)
 	var containers stringList
 	fs.Var(&containers, "container", "Docker container name or ID to assess; repeatable")
 	composeProject := fs.String("compose-project", "", "Docker Compose project label to assess")
@@ -78,6 +102,7 @@ func runAssess(ctx context.Context, runner commandRunner, args []string, stdout 
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+	runner.dockerArgs = source.dockerArgs()
 	if err := RequireExecutable(ctx, runner, "docker"); err != nil {
 		return err
 	}
@@ -164,10 +189,12 @@ func runDryRun(ctx context.Context, runner commandRunner, args []string, stdout 
 
 func runLoadImages(ctx context.Context, runner commandRunner, args []string) error {
 	fs := flag.NewFlagSet("load-images", flag.ContinueOnError)
+	source := addSourceFlags(fs)
 	planPath := fs.String("plan", "xanship-plan.json", "migration plan path")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+	runner.dockerArgs = source.dockerArgs()
 	plan, err := LoadPlan(*planPath)
 	if err != nil {
 		return err
@@ -177,12 +204,14 @@ func runLoadImages(ctx context.Context, runner commandRunner, args []string) err
 
 func runCopyVolumes(ctx context.Context, runner commandRunner, args []string) error {
 	fs := flag.NewFlagSet("copy-volumes", flag.ContinueOnError)
+	source := addSourceFlags(fs)
 	planPath := fs.String("plan", "xanship-plan.json", "migration plan path")
 	image := fs.String("copy-image", "docker.io/library/busybox:latest", "image used to stream volume tar data")
 	verify := fs.Bool("verify", false, "print a verification reminder after volume copy")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+	runner.dockerArgs = source.dockerArgs()
 	plan, err := LoadPlan(*planPath)
 	if err != nil {
 		return err
@@ -198,11 +227,13 @@ func runCopyVolumes(ctx context.Context, runner commandRunner, args []string) er
 
 func runVerifyVolumes(ctx context.Context, runner commandRunner, args []string) error {
 	fs := flag.NewFlagSet("verify-volumes", flag.ContinueOnError)
+	source := addSourceFlags(fs)
 	planPath := fs.String("plan", "xanship-plan.json", "migration plan path")
 	image := fs.String("copy-image", "docker.io/library/busybox:latest", "image used to inspect volume data")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+	runner.dockerArgs = source.dockerArgs()
 	plan, err := LoadPlan(*planPath)
 	if err != nil {
 		return err
@@ -212,11 +243,13 @@ func runVerifyVolumes(ctx context.Context, runner commandRunner, args []string) 
 
 func runStopDocker(ctx context.Context, runner commandRunner, args []string) error {
 	fs := flag.NewFlagSet("stop-docker", flag.ContinueOnError)
+	source := addSourceFlags(fs)
 	planPath := fs.String("plan", "xanship-plan.json", "migration plan path")
 	timeout := fs.String("timeout", "10", "docker stop timeout seconds")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+	runner.dockerArgs = source.dockerArgs()
 	plan, err := LoadPlan(*planPath)
 	if err != nil {
 		return err
@@ -244,10 +277,12 @@ func runStartApple(ctx context.Context, runner commandRunner, args []string) err
 
 func runRollback(ctx context.Context, runner commandRunner, args []string) error {
 	fs := flag.NewFlagSet("rollback", flag.ContinueOnError)
+	source := addSourceFlags(fs)
 	planPath := fs.String("plan", "xanship-plan.json", "migration plan path")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+	runner.dockerArgs = source.dockerArgs()
 	plan, err := LoadPlan(*planPath)
 	if err != nil {
 		return err
@@ -322,6 +357,7 @@ func runReport(args []string, stdout io.Writer) error {
 func runMigrate(ctx context.Context, runner commandRunner, args []string, stdout io.Writer) error {
 	fs := flag.NewFlagSet("migrate", flag.ContinueOnError)
 	fs.SetOutput(stdout)
+	source := addSourceFlags(fs)
 	var containers stringList
 	fs.Var(&containers, "container", "Docker container name or ID to migrate; repeatable")
 	composeProject := fs.String("compose-project", "", "Docker Compose project label to migrate")
@@ -344,6 +380,7 @@ func runMigrate(ctx context.Context, runner commandRunner, args []string, stdout
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+	runner.dockerArgs = source.dockerArgs()
 	if err := RequireExecutable(ctx, runner, "docker"); err != nil {
 		return err
 	}
@@ -393,7 +430,7 @@ func printUsage(w io.Writer) {
 	fmt.Fprintln(w, `Xanship migrates running Docker Desktop containers to Apple Container.
 
 Usage:
-  xanship assess [--container NAME ... | --compose-project PROJECT | --all] [--plan xanship-plan.json]
+  xanship assess [--docker-host ssh://USER@HOST] [--container NAME ... | --compose-project PROJECT | --all]
   xanship commands [--plan xanship-plan.json] [--dry-run]
   xanship preflight [--plan xanship-plan.json] [--format text|json]
   xanship dry-run [--plan xanship-plan.json] [--apply]
@@ -405,7 +442,7 @@ Usage:
   xanship rollback [--plan xanship-plan.json]
   xanship plan summary|validate|set [--plan xanship-plan.json]
   xanship report [--plan xanship-plan.json]
-  xanship migrate [--container NAME ... | --compose-project PROJECT | --all]
+  xanship migrate [--docker-host ssh://USER@HOST] [--container NAME ... | --compose-project PROJECT | --all]
   xanship version
 
 Migration phases:

@@ -97,6 +97,18 @@ xanship assess --compose-project myproject --service web --exclude-service debug
 xanship migrate --compose-project myproject
 ```
 
+SSH越しのLinuxホスト上で動くDockerから、ローカルのApple Containerへ移行する:
+
+```sh
+xanship assess --docker-host ssh://ubuntu@linux-host --container web
+xanship load-images --docker-host ssh://ubuntu@linux-host
+xanship copy-volumes --docker-host ssh://ubuntu@linux-host --verify
+xanship stop-docker --docker-host ssh://ubuntu@linux-host
+xanship start-apple
+```
+
+Docker CLI contextがLinux sourceを向いている場合は、`--docker-context CONTEXT` も利用できます。
+
 移行計画は `xanship-plan.json` に `0600` で保存されます。Docker inspect の結果には、環境変数やラベルなど、秘密情報を含む可能性があるためです。
 
 ## テスト済み移行
