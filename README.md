@@ -1,12 +1,12 @@
 # Xanship
 
-Xanship (transship) is a CLI for moving running Docker Desktop containers to Apple Container on macOS.
+Xanship (transship) is a CLI for moving running Docker containers to Apple Container on macOS.
 
 Japanese documentation is available in [README.ja.md](README.ja.md).
 
 It is intentionally phased rather than live migration:
 
-1. Assess Docker Desktop containers with `docker inspect`, `docker volume ls`, and `docker network ls`.
+1. Assess Docker containers with `docker inspect`, `docker volume ls`, and `docker network ls`.
 2. Generate an Apple Container migration plan.
 3. Optionally load images into Apple Container.
 4. Dry-run Apple Container creation.
@@ -39,13 +39,13 @@ curl -fsSL https://raw.githubusercontent.com/rioriost/xanship/main/scripts/insta
 Install a specific version:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/rioriost/xanship/main/scripts/install.sh | sh -s -- 0.1.0
+curl -fsSL https://raw.githubusercontent.com/rioriost/xanship/main/scripts/install.sh | sh -s -- 0.3.0
 ```
 
 The installer uses `/usr/local/bin` when it is writable. Otherwise, it installs to `$HOME/.local/bin`. Set `INSTALL_DIR` to choose a different destination:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/rioriost/xanship/main/scripts/install.sh | INSTALL_DIR="$HOME/bin" sh -s -- 0.1.0
+curl -fsSL https://raw.githubusercontent.com/rioriost/xanship/main/scripts/install.sh | INSTALL_DIR="$HOME/bin" sh -s -- 0.3.0
 ```
 
 Release archives and checksums are published at <https://github.com/rioriost/Xanship/releases>.
@@ -111,13 +111,51 @@ xanship start-apple
 
 The migration plan is written to `xanship-plan.json` with mode `0600` because Docker inspect output commonly contains environment variables and labels that may include secrets.
 
+## Safety and operability features
+
+Xanship includes release-gated migration controls for staged cutovers:
+
+| Feature | Command or option |
+| --- | --- |
+| Compatibility preflight with port-conflict checks | `xanship preflight --plan xanship-plan.json` |
+| Markdown migration report | `xanship report --plan xanship-plan.json` |
+| Rollback after a failed cutover | `xanship rollback --plan xanship-plan.json` |
+| Idempotent Apple resource handling | <code>--existing fail&#124;reuse&#124;replace</code> |
+| Named-volume copy verification | `xanship copy-volumes --verify` / `xanship verify-volumes` |
+| Bind-mount policy control | <code>--bind-policy keep&#124;warn&#124;fail&#124;copy-to-volume</code> |
+| Plan inspection and editing | `xanship plan summary`, `xanship plan validate`, `xanship plan set` |
+| Compose service filtering and ordering | `--service`, `--exclude-service`, `depends_on` ordering |
+| Image transfer resilience | Apple Container pull first, Docker save/load fallback |
+
+## Linux Docker sources
+
+In addition to local Docker Desktop on macOS, Xanship can assess and stop Docker containers running on Linux hosts through Docker CLI SSH transport:
+
+```sh
+xanship assess --docker-host ssh://user@linux-host --container web
+xanship load-images --docker-host ssh://user@linux-host
+xanship copy-volumes --docker-host ssh://user@linux-host --verify
+xanship stop-docker --docker-host ssh://user@linux-host
+xanship start-apple
+```
+
+Remote named-volume data is streamed from the Linux Docker host into local Apple Container volumes. Use images with Apple Silicon-compatible variants when the source host is x86_64.
+
 ## Tested migrations
 
 Xanship has been tested with 50 representative single-container images and 20 Docker Compose combinations. See [docs/tested.md](docs/tested.md).
 
+Additional end-to-end checks covered:
+
+| Source | Architecture | Docker version | Scenario | Result |
+| --- | --- | --- | --- | --- |
+| Docker Desktop on macOS | arm64 | 29.6.1 | Representative single containers and Compose projects | Passed |
+| Ubuntu Linux on Parallels Desktop | arm64 | 29.1.3 | SSH Docker source, nginx with named volume | Passed |
+| CentOS Stream 8 Linux | x86_64 | 26.1.3 | SSH Docker source, `nginx:alpine` with named volume, Apple Container target on Apple Silicon | Passed |
+
 ## Verified environment
 
-Xanship 0.1.0 was verified with:
+Xanship 0.3.0 was verified with:
 
 | Component | Version |
 | --- | --- |
@@ -126,12 +164,13 @@ Xanship 0.1.0 was verified with:
 | Apple Container | 1.0.0 |
 | container-compose | 1.0.0 |
 | Go | 1.22 or later |
+| Remote Linux Docker sources | Ubuntu arm64 on Parallels Desktop, CentOS Stream 8 x86_64 over SSH |
 
 ## Current scope
 
-Xanship migrates common runtime settings: image, command, entrypoint, environment, labels, working directory, user, TTY/stdin, init, read-only root filesystem, memory/CPU/shm limits, capabilities, DNS settings, published ports, bind mounts, named volumes, tmpfs mounts, and user-defined Docker networks.
+Xanship migrates common runtime settings: image, command, entrypoint, environment, labels, working directory, user, TTY/stdin, init, read-only root filesystem, memory/CPU/shm limits, capabilities, DNS settings, published ports, bind mounts, named volumes, tmpfs mounts, user-defined Docker networks, and Compose service selection/order.
 
-Some Docker-specific behavior is reported as warnings in the plan and requires manual review, including restart policies, privileged mode, healthchecks, `extra_hosts`, non-standard mount types, and Compose dependency order.
+Some Docker-specific behavior is reported as warnings in the plan and requires manual review, including restart policies, privileged mode, healthchecks, `extra_hosts`, and non-standard mount types.
 
 Docker labels that cannot be represented by Apple Container, such as values containing `=`, are skipped with warnings in the migration plan.
 
