@@ -70,10 +70,25 @@ xanship stop-docker
 xanship start-apple
 ```
 
+互換性の事前確認と移行レポート生成:
+
+```sh
+xanship preflight --plan xanship-plan.json
+xanship report --plan xanship-plan.json > xanship-report.md
+```
+
+より安全な移行制御:
+
+```sh
+xanship assess --container my-container --bind-policy copy-to-volume --existing reuse
+xanship copy-volumes --verify
+xanship rollback --plan xanship-plan.json
+```
+
 Docker Compose プロジェクトをラベルでアセスメントする:
 
 ```sh
-xanship assess --compose-project myproject
+xanship assess --compose-project myproject --service web --exclude-service debug
 ```
 
 全フェーズを連続実行する:
@@ -107,6 +122,16 @@ Xanship は、image、command、entrypoint、environment、labels、working dire
 一部の Docker 固有の挙動は計画ファイルに警告として出力され、手動確認が必要です。例: restart policy、privileged mode、healthcheck、`extra_hosts`、非標準の mount type、Compose の依存順序。
 
 Apple Container で表現できない Docker label、例えば値に `=` を含むものは、警告付きで移行対象から除外されます。
+
+## リリースゲート
+
+リリース前に以下を実行してください。
+
+```sh
+make release-check
+```
+
+リリースゲートでは、フォーマット、テスト、`go vet`、インストーラ構文、バージョン埋め込み、対応プラットフォーム向けリリースアーカイブ生成を確認します。
 
 ## ライセンス
 

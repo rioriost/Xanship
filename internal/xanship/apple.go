@@ -99,6 +99,8 @@ func appleContainerArgs(action string, c ContainerPlan, nameOverride string) []s
 				source = m.Source
 			}
 			args = append(args, "--mount", mountSpec("volume", source, m.Target, m.ReadOnly))
+		case "bind-volume":
+			args = append(args, "--mount", mountSpec("volume", m.TargetName, m.Target, m.ReadOnly))
 		case "bind":
 			args = append(args, "--mount", mountSpec("bind", m.Source, m.Target, m.ReadOnly))
 		case "tmpfs":

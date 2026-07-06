@@ -12,13 +12,25 @@ import (
 )
 
 type AssessOptions struct {
-	Containers     []string
-	ComposeProject string
-	All            bool
-	TargetPrefix   string
+	Containers      []string
+	ComposeProject  string
+	ComposeServices []string
+	ExcludeServices []string
+	All             bool
+	TargetPrefix    string
+	BindPolicy      string
+	ExistingPolicy  string
 }
 
 func BuildPlan(ctx context.Context, runner commandRunner, opts AssessOptions) (*Plan, error) {
+	bindPolicy, err := normalizeBindPolicy(opts.BindPolicy)
+	if err != nil {
+		return nil, err
+	}
+	existingPolicy, err := normalizeExistingPolicy(opts.ExistingPolicy)
+	if err != nil {
+		return nil, err
+	}
 	refs, selection, err := selectContainerRefs(ctx, runner, opts)
 	if err != nil {
 		return nil, err
@@ -40,6 +52,7 @@ func BuildPlan(ctx context.Context, runner commandRunner, opts AssessOptions) (*
 	networkNames, _ := listDockerObjects(ctx, runner, "network")
 
 	volumeSet := map[string]bool{}
+	bindVolumeSet := map[string]VolumePlan{}
 	networkSet := map[string]bool{}
 	imageSet := map[string]bool{}
 	var warnings []string
@@ -54,7 +67,13 @@ func BuildPlan(ctx context.Context, runner commandRunner, opts AssessOptions) (*
 	})
 
 	for _, dc := range dockerContainers {
-		cp := convertContainer(dc, opts.TargetPrefix, nameAllocator, volumeTargets, networkTargets)
+		if !composeServiceSelected(dc, opts.ComposeServices, opts.ExcludeServices) {
+			continue
+		}
+		cp, err := convertContainer(dc, opts.TargetPrefix, bindPolicy, nameAllocator, volumeTargets, networkTargets)
+		if err != nil {
+			return nil, err
+		}
 		imageSet[cp.Image] = true
 		if !dc.State.Running {
 			cp.Warnings = append(cp.Warnings, "source Docker container is not running")
@@ -81,6 +100,14 @@ func BuildPlan(ctx context.Context, runner commandRunner, opts AssessOptions) (*
 			if m.Type == "volume" && m.Source != "" {
 				volumeSet[m.Source] = true
 			}
+			if m.Type == "bind-volume" && m.TargetName != "" {
+				bindVolumeSet[m.TargetName] = VolumePlan{
+					SourceName: m.Source,
+					SourceKind: "bind",
+					SourcePath: m.Source,
+					TargetName: m.TargetName,
+				}
+			}
 		}
 		for _, n := range cp.Networks {
 			networkSet[n.SourceName] = true
@@ -88,15 +115,24 @@ func BuildPlan(ctx context.Context, runner commandRunner, opts AssessOptions) (*
 		containers = append(containers, cp)
 		warnings = append(warnings, cp.Warnings...)
 	}
+	if len(containers) == 0 {
+		return nil, fmt.Errorf("no Docker containers selected after filters")
+	}
 
 	volumes, err := inspectVolumes(ctx, runner, volumeSet, volumeTargets)
 	if err != nil {
 		return nil, err
 	}
+	for _, v := range bindVolumeSet {
+		volumes = append(volumes, v)
+	}
 	for i := range volumes {
 		for _, c := range containers {
 			for _, m := range c.Mounts {
 				if m.Type == "volume" && m.Source == volumes[i].SourceName {
+					volumes[i].MountedBy = append(volumes[i].MountedBy, c.TargetName)
+				}
+				if m.Type == "bind-volume" && m.TargetName == volumes[i].TargetName {
 					volumes[i].MountedBy = append(volumes[i].MountedBy, c.TargetName)
 				}
 			}
@@ -125,6 +161,7 @@ func BuildPlan(ctx context.Context, runner commandRunner, opts AssessOptions) (*
 	return &Plan{
 		Version:   planVersion,
 		CreatedAt: time.Now().UTC(),
+		Options:   PlanOptions{BindPolicy: bindPolicy, ExistingPolicy: existingPolicy},
 		Source: SourceSummary{
 			Selection:          selection,
 			DockerContext:      dockerContext(ctx, runner),
@@ -136,8 +173,19 @@ func BuildPlan(ctx context.Context, runner commandRunner, opts AssessOptions) (*
 		Networks:   networks,
 		Volumes:    volumes,
 		Images:     images,
-		Containers: containers,
+		Containers: orderComposeContainers(containers),
 	}, nil
+}
+
+func composeServiceSelected(dc dockerContainer, include, exclude []string) bool {
+	service := dc.Config.Labels["com.docker.compose.service"]
+	if service == "" {
+		return true
+	}
+	if containsString(exclude, service) {
+		return false
+	}
+	return len(include) == 0 || containsString(include, service)
 }
 
 func explicitDockerHostname(dc dockerContainer) bool {
@@ -212,7 +260,7 @@ func dockerContext(ctx context.Context, runner commandRunner) string {
 	return strings.TrimSpace(string(out))
 }
 
-func convertContainer(dc dockerContainer, prefix string, allocator *nameAllocator, volumeTargets, networkTargets map[string]string) ContainerPlan {
+func convertContainer(dc dockerContainer, prefix, bindPolicy string, allocator *nameAllocator, volumeTargets, networkTargets map[string]string) (ContainerPlan, error) {
 	sourceName := strings.TrimPrefix(dc.Name, "/")
 	targetName := allocator.unique(sanitizeName(prefix + sourceName))
 	cp := ContainerPlan{
@@ -246,6 +294,7 @@ func convertContainer(dc dockerContainer, prefix string, allocator *nameAllocato
 			Project:     project,
 			Service:     dc.Config.Labels["com.docker.compose.service"],
 			ContainerNo: dc.Config.Labels["com.docker.compose.container-number"],
+			DependsOn:   parseComposeDependsOn(dc.Config.Labels["com.docker.compose.depends_on"]),
 		}
 	}
 
@@ -262,6 +311,19 @@ func convertContainer(dc dockerContainer, prefix string, allocator *nameAllocato
 			}
 		case "bind":
 			mp.Source = m.Source
+			switch bindPolicy {
+			case BindPolicyFail:
+				return ContainerPlan{}, fmt.Errorf("bind mount %s:%s requires a different --bind-policy", m.Source, m.Destination)
+			case BindPolicyWarn:
+				cp.Warnings = append(cp.Warnings, "bind mount "+m.Source+" is kept as-is; use --bind-policy copy-to-volume to migrate data into an Apple volume")
+			case BindPolicyCopyToVolume:
+				mp.Type = "bind-volume"
+				mp.TargetName = sanitizeName(prefix + sourceName + "-" + strings.Trim(m.Destination, "/"))
+				if mp.TargetName == "" {
+					mp.TargetName = sanitizeName(prefix + sourceName + "-bind")
+				}
+				cp.Warnings = append(cp.Warnings, "bind mount "+m.Source+" will be copied into Apple volume "+mp.TargetName)
+			}
 		case "tmpfs":
 			mp.Source = ""
 		default:
@@ -278,7 +340,58 @@ func convertContainer(dc dockerContainer, prefix string, allocator *nameAllocato
 
 	cp.Ports = convertPorts(dc.NetworkSettings.Ports, dc.HostConfig.PortBindings, dc.Config.ExposedPorts, &cp)
 	cp.Networks = convertNetworks(dc.NetworkSettings.Networks, prefix, networkTargets)
-	return cp
+	return cp, nil
+}
+
+func parseComposeDependsOn(value string) []string {
+	if strings.TrimSpace(value) == "" {
+		return nil
+	}
+	parts := strings.Split(value, ",")
+	var out []string
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		if i := strings.IndexByte(p, ':'); i >= 0 {
+			p = p[:i]
+		}
+		out = append(out, p)
+	}
+	return compactStrings(out)
+}
+
+func orderComposeContainers(in []ContainerPlan) []ContainerPlan {
+	out := append([]ContainerPlan(nil), in...)
+	for i := 0; i < len(out); i++ {
+		changed := false
+		for j := 0; j < len(out); j++ {
+			if out[j].Compose == nil {
+				continue
+			}
+			for _, dep := range out[j].Compose.DependsOn {
+				k := indexComposeService(out, dep)
+				if k > j {
+					out[j], out[k] = out[k], out[j]
+					changed = true
+				}
+			}
+		}
+		if !changed {
+			break
+		}
+	}
+	return out
+}
+
+func indexComposeService(containers []ContainerPlan, service string) int {
+	for i, c := range containers {
+		if c.Compose != nil && c.Compose.Service == service {
+			return i
+		}
+	}
+	return -1
 }
 
 func parseEntrypoint(raw json.RawMessage) []string {
@@ -380,6 +493,7 @@ func inspectVolumes(ctx context.Context, runner commandRunner, names map[string]
 		}
 		volumes = append(volumes, VolumePlan{
 			SourceName: dv.Name,
+			SourceKind: "volume",
 			TargetName: targets[dv.Name],
 			Labels:     copyStringMap(dv.Labels),
 		})
@@ -537,4 +651,13 @@ func compactStrings(in []string) []string {
 		out = append(out, s)
 	}
 	return out
+}
+
+func containsString(values []string, want string) bool {
+	for _, v := range values {
+		if v == want {
+			return true
+		}
+	}
+	return false
 }

@@ -19,7 +19,7 @@ jobs:
           go-version-file: go.mod
 
       - name: Test
-        run: go test ./...
+        run: make release-check
 
       - name: Build release assets
         env:

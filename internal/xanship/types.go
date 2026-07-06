@@ -8,11 +8,17 @@ type Plan struct {
 	Version    string          `json:"version"`
 	CreatedAt  time.Time       `json:"created_at"`
 	Source     SourceSummary   `json:"source"`
+	Options    PlanOptions     `json:"options,omitempty"`
 	Warnings   []string        `json:"warnings,omitempty"`
 	Networks   []NetworkPlan   `json:"networks,omitempty"`
 	Volumes    []VolumePlan    `json:"volumes,omitempty"`
 	Images     []string        `json:"images,omitempty"`
 	Containers []ContainerPlan `json:"containers"`
+}
+
+type PlanOptions struct {
+	BindPolicy     string `json:"bind_policy,omitempty"`
+	ExistingPolicy string `json:"existing_policy,omitempty"`
 }
 
 type SourceSummary struct {
@@ -33,6 +39,8 @@ type NetworkPlan struct {
 
 type VolumePlan struct {
 	SourceName string            `json:"source_name"`
+	SourceKind string            `json:"source_kind,omitempty"`
+	SourcePath string            `json:"source_path,omitempty"`
 	TargetName string            `json:"target_name"`
 	Labels     map[string]string `json:"labels,omitempty"`
 	MountedBy  []string          `json:"mounted_by,omitempty"`
@@ -69,9 +77,10 @@ type ContainerPlan struct {
 }
 
 type ComposeInfo struct {
-	Project     string `json:"project,omitempty"`
-	Service     string `json:"service,omitempty"`
-	ContainerNo string `json:"container_no,omitempty"`
+	Project     string   `json:"project,omitempty"`
+	Service     string   `json:"service,omitempty"`
+	ContainerNo string   `json:"container_no,omitempty"`
+	DependsOn   []string `json:"depends_on,omitempty"`
 }
 
 type MountPlan struct {

@@ -70,10 +70,25 @@ xanship stop-docker
 xanship start-apple
 ```
 
+Run a compatibility preflight and generate a migration report:
+
+```sh
+xanship preflight --plan xanship-plan.json
+xanship report --plan xanship-plan.json > xanship-report.md
+```
+
+Use safer migration controls:
+
+```sh
+xanship assess --container my-container --bind-policy copy-to-volume --existing reuse
+xanship copy-volumes --verify
+xanship rollback --plan xanship-plan.json
+```
+
 Assess a Docker Compose project by label:
 
 ```sh
-xanship assess --compose-project myproject
+xanship assess --compose-project myproject --service web --exclude-service debug
 ```
 
 Run all phases in sequence:
@@ -107,6 +122,16 @@ Xanship migrates common runtime settings: image, command, entrypoint, environmen
 Some Docker-specific behavior is reported as warnings in the plan and requires manual review, including restart policies, privileged mode, healthchecks, `extra_hosts`, non-standard mount types, and Compose dependency order.
 
 Docker labels that cannot be represented by Apple Container, such as values containing `=`, are skipped with warnings in the migration plan.
+
+## Release gate
+
+Before releasing, run:
+
+```sh
+make release-check
+```
+
+The release gate checks formatting, tests, `go vet`, installer syntax, version injection, and release archive generation for supported platforms.
 
 ## License
 
